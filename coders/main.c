@@ -4,7 +4,6 @@
 #include <sys/time.h>
 #include "codexion.h"
 
-/* 今の時刻をミリ秒で返す */
 long	get_timestamp_ms(void)
 {
 	struct timeval	tv;
@@ -13,7 +12,6 @@ long	get_timestamp_ms(void)
 	return (tv.tv_sec * 1000 + tv.tv_usec / 1000);
 }
 
-/* 経過時間付きログ */
 void	log_msg(t_shared *shared, const char *msg)
 {
 	long	now;
@@ -22,21 +20,25 @@ void	log_msg(t_shared *shared, const char *msg)
 	printf("%ldms %s\n", now - shared->start_time, msg);
 }
 
-/* coder がやる仕事（スレッドの中身） */
 void	*coder_routine(void *arg)
 {
 	t_coder	*coder;
+	char	msg[64];
 
 	coder = (t_coder *)arg;
-	log_msg(coder->shared, "coder starts compiling");
+	snprintf(msg, sizeof(msg), "coder %d starts compiling", coder->id);
+	log_msg(coder->shared, msg);
 	usleep(200 * 1000);
-	log_msg(coder->shared, "coder debugging");
+
+	snprintf(msg, sizeof(msg), "coder %d debugging", coder->id);
+	log_msg(coder->shared, msg);
 	usleep(200 * 1000);
-	log_msg(coder->shared, "coder refactoring");
+
+	snprintf(msg, sizeof(msg), "coder %d refactoring", coder->id);
+	log_msg(coder->shared, msg);
 	return (NULL);
 }
 
-/* 引数処理 */
 static int	parse_args(int argc, char **argv, t_shared *shared)
 {
 	if (argc != 3)
@@ -53,7 +55,8 @@ static int	parse_args(int argc, char **argv, t_shared *shared)
 int	main(int argc, char **argv)
 {
 	t_shared	shared;
-	t_coder		coder;
+	t_coder		*coders;
+	int			i;
 
 	if (!parse_args(argc, argv, &shared))
 		return (1);
@@ -61,14 +64,29 @@ int	main(int argc, char **argv)
 	shared.start_time = get_timestamp_ms();
 	log_msg(&shared, "program started");
 
-	coder.id = 1;
-	coder.shared = &shared;
+	coders = malloc(sizeof(t_coder) * shared.num_coders);
+	if (!coders)
+		return (1);
 
-	pthread_create(&coder.thread, NULL, coder_routine, &coder);
+	i = 0;
+	while (i < shared.num_coders)
+	{
+		coders[i].id = i + 1;
+		coders[i].shared = &shared;
+		pthread_create(&coders[i].thread, NULL, coder_routine, &coders[i]);
+		i++;
+	}
 
-	log_msg(&shared, "main is waiting for coder");
-	pthread_join(coder.thread, NULL);
+	log_msg(&shared, "main is waiting for all coders");
+
+	i = 0;
+	while (i < shared.num_coders)
+	{
+		pthread_join(coders[i].thread, NULL);
+		i++;
+	}
 
 	log_msg(&shared, "program finished");
+	free(coders);
 	return (0);
 }
