@@ -20,21 +20,56 @@ void	log_msg(t_shared *shared, const char *msg)
 	printf("%ldms %s\n", now - shared->start_time, msg);
 }
 
+/* dongle を取る */
+static void	take_dongle(t_shared *shared, int coder_id)
+{
+	char	msg[64];
+
+	pthread_mutex_lock(&shared->dongle.mutex);
+	while (shared->dongle.in_use)
+	{
+		/* 今回は busy wait（後で改善する） */
+		pthread_mutex_unlock(&shared->dongle.mutex);
+		usleep(1000);
+		pthread_mutex_lock(&shared->dongle.mutex);
+	}
+	shared->dongle.in_use = 1;
+	snprintf(msg, sizeof(msg), "coder %d took dongle", coder_id);
+	log_msg(shared, msg);
+	pthread_mutex_unlock(&shared->dongle.mutex);
+}
+
+/* dongle を返す */
+static void	release_dongle(t_shared *shared, int coder_id)
+{
+	char	msg[64];
+
+	pthread_mutex_lock(&shared->dongle.mutex);
+	shared->dongle.in_use = 0;
+	snprintf(msg, sizeof(msg), "coder %d released dongle", coder_id);
+	log_msg(shared, msg);
+	pthread_mutex_unlock(&shared->dongle.mutex);
+}
+
 void	*coder_routine(void *arg)
 {
 	t_coder	*coder;
 	char	msg[64];
 
 	coder = (t_coder *)arg;
-	snprintf(msg, sizeof(msg), "coder %d starts compiling", coder->id);
-	log_msg(coder->shared, msg);
-	usleep(200 * 1000);
 
-	snprintf(msg, sizeof(msg), "coder %d debugging", coder->id);
+	snprintf(msg, sizeof(msg), "coder %d wants to compile", coder->id);
 	log_msg(coder->shared, msg);
-	usleep(200 * 1000);
 
-	snprintf(msg, sizeof(msg), "coder %d refactoring", coder->id);
+	take_dongle(coder->shared, coder->id);
+
+	snprintf(msg, sizeof(msg), "coder %d compiling", coder->id);
+	log_msg(coder->shared, msg);
+	usleep(300 * 1000);
+
+	release_dongle(coder->shared, coder->id);
+
+	snprintf(msg, sizeof(msg), "coder %d done", coder->id);
 	log_msg(coder->shared, msg);
 	return (NULL);
 }
@@ -62,6 +97,11 @@ int	main(int argc, char **argv)
 		return (1);
 
 	shared.start_time = get_timestamp_ms();
+
+	/* dongle 初期化 */
+	pthread_mutex_init(&shared.dongle.mutex, NULL);
+	shared.dongle.in_use = 0;
+
 	log_msg(&shared, "program started");
 
 	coders = malloc(sizeof(t_coder) * shared.num_coders);
@@ -77,8 +117,6 @@ int	main(int argc, char **argv)
 		i++;
 	}
 
-	log_msg(&shared, "main is waiting for all coders");
-
 	i = 0;
 	while (i < shared.num_coders)
 	{
@@ -87,6 +125,8 @@ int	main(int argc, char **argv)
 	}
 
 	log_msg(&shared, "program finished");
+
+	pthread_mutex_destroy(&shared.dongle.mutex);
 	free(coders);
 	return (0);
 }

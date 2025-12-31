@@ -3,12 +3,19 @@
 
 #include <pthread.h>
 
+typedef struct s_dongle
+{
+	pthread_mutex_t	mutex;
+	int				in_use;
+}	t_dongle;
+
 typedef struct s_shared
 {
 	int		num_coders;
 	int		num_dongles;
 	int		finished;
 	long	start_time;
+	t_dongle dongle;
 }	t_shared;
 
 typedef struct s_coder
