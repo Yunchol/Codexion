@@ -2,45 +2,60 @@
 #include <unistd.h>
 #include "codexion.h"
 
-static void	queue_push(t_queue *q, int id)
+static void	queue_push(t_queue *q, int coder_id, long deadline)
 {
-	q->items[q->tail] = id;
-	q->tail = (q->tail + 1) % MAX_CODERS;
+	q->items[q->count].coder_id = coder_id;
+	q->items[q->count].deadline_ms = deadline;
 	q->count++;
 }
 
-static void	queue_pop(t_queue *q)
+static int	queue_pick_earliest(t_queue *q)
 {
-	q->head = (q->head + 1) % MAX_CODERS;
+	int	i;
+	int	best = 0;
+
+	i = 1;
+	while (i < q->count)
+	{
+		if (q->items[i].deadline_ms < q->items[best].deadline_ms)
+			best = i;
+		i++;
+	}
+	return (best);
+}
+
+static void	queue_remove(t_queue *q, int idx)
+{
+	q->items[idx] = q->items[q->count - 1];
 	q->count--;
 }
 
-static int	queue_front(t_queue *q)
-{
-	return (q->items[q->head]);
-}
 
 
 static void	take_dongle(t_shared *shared, int idx, int coder_id)
 {
-	char	msg[64];
-	long	now;
-	struct timespec	ts;
-	t_dongle *d;
+	char				msg[64];
+	long				now;
+	long				deadline;
+	struct timespec		ts;
+	t_dongle			*d;
 
 	d = &shared->dongles[idx];
+	deadline = get_timestamp_ms() + 1000; /* ★ 仮の締切：1秒後 */
 
 	pthread_mutex_lock(&d->mutex);
 
-	/* ★ 並ぶ */
-	queue_push(&d->queue, coder_id);
+	/* ★ エントリー */
+	queue_push(&d->queue, coder_id, deadline);
 
-	while (1)
+	while (!shared->stop)
 	{
 		now = get_timestamp_ms();
+		int best = queue_pick_earliest(&d->queue);
+
 		if (!d->in_use
 			&& now >= d->next_available_ms
-			&& queue_front(&d->queue) == coder_id)
+			&& d->queue.items[best].coder_id == coder_id)
 			break;
 
 		ts.tv_sec = (now + 50) / 1000;
@@ -48,16 +63,25 @@ static void	take_dongle(t_shared *shared, int idx, int coder_id)
 		pthread_cond_timedwait(&d->cond, &d->mutex, &ts);
 	}
 
-	/* ★ 先頭なので進む */
-	queue_pop(&d->queue);
+    if (shared->stop)
+    {
+        pthread_mutex_unlock(&d->mutex);
+        return;
+    }
+
+
+	/* ★ 自分が最優先だった */
+	int idx_best = queue_pick_earliest(&d->queue);
+	queue_remove(&d->queue, idx_best);
 	d->in_use = 1;
 
 	snprintf(msg, sizeof(msg),
-		"coder %d took dongle %d (FIFO)", coder_id, idx);
+		"coder %d took dongle %d (EDF)", coder_id, idx);
 	log_msg(shared, msg);
 
 	pthread_mutex_unlock(&d->mutex);
 }
+
 
 
 
@@ -95,13 +119,20 @@ void	*coder_routine(void *arg)
 
 	coder = (t_coder *)arg;
 
+    if (coder->shared->stop)
+        return (NULL);
+
 	snprintf(msg, sizeof(msg),
 		"coder %d wants to compile", coder->id);
 	log_msg(coder->shared, msg);
 
 	/* ★ STEP6：順序を固定する（これだけでOK） */
 	take_dongle(coder->shared, 0, coder->id);
+    if (coder->shared->stop)
+        return (NULL);
 	take_dongle(coder->shared, 1, coder->id);
+    if (coder->shared->stop)
+        return (NULL);
 
 	snprintf(msg, sizeof(msg),
 		"coder %d compiling", coder->id);

@@ -17,6 +17,7 @@ int	main(int argc, char **argv)
 {
 	t_shared	shared;
 	t_coder		*coders;
+	pthread_t monitor;
 	int			i;
 
 	if (!parse_args(argc, argv, &shared))
@@ -24,6 +25,7 @@ int	main(int argc, char **argv)
 
 	shared.start_time = get_timestamp_ms();
 
+	shared.stop = 0;
 	/* dongle 初期化 */
 	i = 0;
 	while (i < 2)
@@ -32,14 +34,13 @@ int	main(int argc, char **argv)
 		pthread_cond_init(&shared.dongles[i].cond, NULL);
 		shared.dongles[i].in_use = 0;
 		shared.dongles[i].next_available_ms = 0;
-		shared.dongles[i].queue.head = 0;
-		shared.dongles[i].queue.tail = 0;
 		shared.dongles[i].queue.count = 0;
-
 		i++;
 	}
 
 	log_msg(&shared, "program started");
+
+	pthread_create(&monitor, NULL, monitor_routine, &shared);
 
 	coders = malloc(sizeof(t_coder) * shared.num_coders);
 	if (!coders)
@@ -58,6 +59,7 @@ int	main(int argc, char **argv)
 	while (i < shared.num_coders)
 	{
 		pthread_join(coders[i].thread, NULL);
+		pthread_join(monitor, NULL);
 		i++;
 	}
 
