@@ -145,5 +145,10 @@ void	*coder_routine(void *arg)
 	snprintf(msg, sizeof(msg),
 		"coder %d done", coder->id);
 	log_msg(coder->shared, msg);
+
+    /* ★ 終了報告 */
+    pthread_mutex_lock(&coder->shared->dongles[0].mutex);
+    coder->shared->finished_coders++;
+    pthread_mutex_unlock(&coder->shared->dongles[0].mutex);
 	return (NULL);
 }

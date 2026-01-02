@@ -38,8 +38,9 @@ typedef struct s_shared
 	int		num_coders;
 	int		num_dongles;
 	int		finished;
-    int			stop;
+    int		stop;
 	long	start_time;
+    int     finished_coders; 
 	t_dongle dongles[2];
 }	t_shared;
 

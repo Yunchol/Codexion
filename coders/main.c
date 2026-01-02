@@ -26,6 +26,7 @@ int	main(int argc, char **argv)
 	shared.start_time = get_timestamp_ms();
 
 	shared.stop = 0;
+	shared.finished_coders = 0;
 	/* dongle 初期化 */
 	i = 0;
 	while (i < 2)
@@ -59,9 +60,9 @@ int	main(int argc, char **argv)
 	while (i < shared.num_coders)
 	{
 		pthread_join(coders[i].thread, NULL);
-		pthread_join(monitor, NULL);
 		i++;
 	}
+	pthread_join(monitor, NULL);
 
 	log_msg(&shared, "program finished");
 
