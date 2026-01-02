@@ -3,13 +3,26 @@
 
 #include <pthread.h>
 
+#define MAX_CODERS 200
+
+typedef struct s_queue
+{
+	int	items[MAX_CODERS];
+	int	head;
+	int	tail;
+	int	count;
+}	t_queue;
+
 typedef struct s_dongle
 {
 	pthread_mutex_t	mutex;
     pthread_cond_t	cond; 
 	int				in_use;
     long			next_available_ms;
+    t_queue			queue; /* ★ FIFO */
 }	t_dongle;
+
+
 
 typedef struct s_shared
 {

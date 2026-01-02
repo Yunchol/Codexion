@@ -32,6 +32,10 @@ int	main(int argc, char **argv)
 		pthread_cond_init(&shared.dongles[i].cond, NULL);
 		shared.dongles[i].in_use = 0;
 		shared.dongles[i].next_available_ms = 0;
+		shared.dongles[i].queue.head = 0;
+		shared.dongles[i].queue.tail = 0;
+		shared.dongles[i].queue.count = 0;
+
 		i++;
 	}
 
