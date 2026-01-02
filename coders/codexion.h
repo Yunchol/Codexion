@@ -6,7 +6,9 @@
 typedef struct s_dongle
 {
 	pthread_mutex_t	mutex;
+    pthread_cond_t	cond; 
 	int				in_use;
+    long			next_available_ms;
 }	t_dongle;
 
 typedef struct s_shared

@@ -29,7 +29,9 @@ int	main(int argc, char **argv)
 	while (i < 2)
 	{
 		pthread_mutex_init(&shared.dongles[i].mutex, NULL);
+		pthread_cond_init(&shared.dongles[i].cond, NULL);
 		shared.dongles[i].in_use = 0;
+		shared.dongles[i].next_available_ms = 0;
 		i++;
 	}
 
@@ -60,6 +62,7 @@ int	main(int argc, char **argv)
 	i = 0;
 	while (i < 2)
 	{
+		pthread_cond_destroy(&shared.dongles[i].cond);
 		pthread_mutex_destroy(&shared.dongles[i].mutex);
 		i++;
 	}
