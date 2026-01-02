@@ -15,7 +15,7 @@ typedef struct s_shared
 	int		num_dongles;
 	int		finished;
 	long	start_time;
-	t_dongle dongle;
+	t_dongle dongles[2];
 }	t_shared;
 
 typedef struct s_coder
